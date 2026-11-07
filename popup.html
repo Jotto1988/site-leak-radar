@@ -39,6 +39,12 @@
         #btn-download-csv { background: #00cc66; color: #111; display: none; font-weight: bold; }
         #btn-download-csv:hover { background: #00b359; border-color: #00b359; }
 
+        /* GitHub dorks */
+        .dork-link { display: block; background: #2a2a2a; color: #0ff; text-decoration: none; padding: 7px 9px; margin-bottom: 5px; border-radius: 4px; font-size: 11px; border: 1px solid #333; }
+        .dork-link:hover { border-color: #84cc16; background: #222; }
+        .dork-label { color: #fff; font-weight: bold; display: block; margin-bottom: 2px; }
+        .dork-query { color: #888; font-size: 10px; word-break: break-all; }
+
         /* Deep scan */
         #deep-scan-status { font-size: 10px; color: #aaa; margin-bottom: 8px; min-height: 12px; }
         #btn-deep-scan { background: #2b4a6f; border-color: #3b6ea5; }
@@ -77,8 +83,15 @@
 
     <div class="section">
         <h3>External Footprint</h3>
-        <a id="btn-github" href="#" target="_blank" class="btn">Search GitHub for Domain</a>
         <a id="btn-subdomains" href="#" target="_blank" class="btn">View crt.sh Subdomains</a>
+
+        <h3 style="margin-top:14px;">GitHub Dorks</h3>
+        <div style="display:flex; gap:5px; margin-bottom:8px;">
+            <input type="text" id="github-org-input" placeholder="GitHub org (optional, e.g. paypal)"
+                   style="flex:1; background:#2a2a2a; border:1px solid #444; color:#fff; padding:6px; border-radius:3px; font-family:monospace; font-size:11px;">
+            <button id="btn-rebuild-dorks" class="btn" style="width:auto; margin:0; padding:6px 10px;">Go</button>
+        </div>
+        <div id="github-dorks-container"></div>
     </div>
 
     <script src="rules.js"></script>

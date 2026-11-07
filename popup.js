@@ -49,6 +49,63 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// ---- GitHub dork generation ----
+// A bare "domain.com" code search is mostly noise (donate buttons, READMEs).
+// Build targeted dorks instead: org-scoped secret hunts (if an org is given),
+// plus domain + secret-shaped keyword/filename combinations.
+function buildDorks(domain, org) {
+  const dorks = [];
+
+  if (org) {
+    dorks.push({
+      label: `Org "${org}": secret keywords`,
+      query: `org:${org} ("api_key" OR "apikey" OR "secret" OR "password" OR "access_token" OR "private_key")`,
+    });
+    dorks.push({
+      label: `Org "${org}": .env files`,
+      query: `org:${org} extension:env`,
+    });
+    dorks.push({
+      label: `Org "${org}": config/credentials files`,
+      query: `org:${org} (filename:application.properties OR filename:config.json OR filename:settings.py OR filename:docker-compose.yml OR filename:credentials.json)`,
+    });
+  }
+
+  dorks.push({
+    label: `"${domain}" + secret keywords`,
+    query: `"${domain}" ("client_secret" OR "api_key" OR "Authorization: Bearer" OR "private_key" OR "access_token")`,
+  });
+  dorks.push({
+    label: `"${domain}" + .env files`,
+    query: `"${domain}" extension:env`,
+  });
+  dorks.push({
+    label: `"${domain}" + config/credentials files`,
+    query: `"${domain}" (filename:config.json OR filename:application.properties OR filename:settings.py OR filename:docker-compose.yml)`,
+  });
+  dorks.push({
+    label: `Internal hostname guess`,
+    query: `"internal.${domain}"`,
+  });
+
+  return dorks;
+}
+
+function renderDorks(domain, org) {
+  const container = document.getElementById("github-dorks-container");
+  container.innerHTML = "";
+  const dorks = buildDorks(domain, org);
+  dorks.forEach((d) => {
+    const a = document.createElement("a");
+    a.className = "dork-link";
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.href = `https://github.com/search?q=${encodeURIComponent(d.query)}&type=code`;
+    a.innerHTML = `<span class="dork-label">${escapeHtml(d.label)}</span><span class="dork-query">${escapeHtml(d.query)}</span>`;
+    container.appendChild(a);
+  });
+}
+
 // ---- 1. Page scan (content script) + footprint links ----
 chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
   const currentTab = tabs[0];
@@ -57,8 +114,14 @@ chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
   currentOrigin = url.origin;
   const domain = url.hostname.replace(/^www\./, "");
 
-  document.getElementById("btn-github").href = `https://github.com/search?q=%22${domain}%22&type=code`;
   document.getElementById("btn-subdomains").href = `https://crt.sh/?q=%25.${domain}`;
+  document.getElementById("github-org-input").dataset.domain = domain;
+  renderDorks(domain, "");
+
+  document.getElementById("btn-rebuild-dorks").addEventListener("click", () => {
+    const org = document.getElementById("github-org-input").value.trim();
+    renderDorks(domain, org);
+  });
 
   chrome.tabs.sendMessage(currentTab.id, { action: "getLeaks" }, function (response) {
     const container = document.getElementById("leak-container");
