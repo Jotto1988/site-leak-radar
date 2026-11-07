@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { width: 420px; background: #121212; color: #f1f1f1; font-family: monospace; margin: 0; padding: 15px; }
+        h2 { margin: 0 0 15px 0; color: #ff9900; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .section { background: #1e1e1e; padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #333; }
+        .section h3 { margin: 0 0 10px 0; font-size: 13px; color: #aaa; }
+        .leak-item { background: #2a2a2a; padding: 8px; margin-bottom: 5px; border-radius: 4px; font-size: 11px; word-break: break-all; border-left: 3px solid #ff3333; }
+        .no-leaks { color: #00ff00; font-size: 12px; }
+        .btn { display: block; width: 100%; padding: 8px; margin-bottom: 8px; background: #333; color: #fff; text-align: center; text-decoration: none; border-radius: 4px; border: 1px solid #555; cursor: pointer; }
+        .btn:hover { background: #ff9900; color: #111; border-color: #ff9900; }
+        
+        /* Header Manager Styles */
+        .header-row { display: flex; gap: 5px; margin-bottom: 6px; align-items: center; }
+        .header-row input[type="text"] { flex: 1; background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 6px; border-radius: 3px; font-family: monospace; font-size: 11px; }
+        .header-row input[type="checkbox"] { accent-color: #ff9900; width: 16px; height: 16px; cursor: pointer; }
+        #save-headers { background: #ff9900; color: #111; font-weight: bold; border: none; margin-top: 5px; }
+        #save-headers:hover { background: #e68a00; }
+        .status-msg { font-size: 10px; color: #00ff00; text-align: center; min-height: 12px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <h2>Site Leak Radar</h2>
+    
+    <div class="section">
+        <h3>Custom Header Injection</h3>
+        <div id="headers-container">
+            <!-- Populated dynamically via JS -->
+        </div>
+        <button id="save-headers" class="btn">Save & Apply Headers</button>
+        <div id="save-status" class="status-msg"></div>
+    </div>
+
+    <div class="section">
+        <h3>Detected Secrets (DOM)</h3>
+        <div id="leak-container">Scanning current page...</div>
+    </div>
+
+    <div class="section">
+        <h3>External Footprint</h3>
+        <a id="btn-github" href="#" target="_blank" class="btn">Search GitHub for Domain</a>
+        <a id="btn-subdomains" href="#" target="_blank" class="btn">View crt.sh Subdomains</a>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
