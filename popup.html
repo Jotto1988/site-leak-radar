@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { width: 420px; background: #121212; color: #f1f1f1; font-family: monospace; margin: 0; padding: 15px; }
+        body { width: 450px; background: #121212; color: #f1f1f1; font-family: monospace; margin: 0; padding: 15px; }
         h2 { margin: 0 0 15px 0; color: #ff9900; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
         .section { background: #1e1e1e; padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #333; }
         .section h3 { margin: 0 0 10px 0; font-size: 13px; color: #aaa; }
@@ -19,16 +19,27 @@
         #save-headers { background: #ff9900; color: #111; font-weight: bold; border: none; margin-top: 5px; }
         #save-headers:hover { background: #e68a00; }
         .status-msg { font-size: 10px; color: #00ff00; text-align: center; min-height: 12px; margin-top: 5px; }
+
+        /* Scope Resolver Styles */
+        #scope-input { width: 100%; box-sizing: border-box; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 8px; font-family: monospace; font-size: 11px; margin-bottom: 8px; border-radius: 4px; resize: vertical; }
+        #btn-download-csv { background: #00cc66; color: #111; display: none; font-weight: bold; }
+        #btn-download-csv:hover { background: #00b359; border-color: #00b359; }
     </style>
 </head>
 <body>
-    <h2>Site Leak Radar</h2>
+    <h2>Site Leak Radar (Multi-Tool)</h2>
     
     <div class="section">
+        <h3>Bulk Scope Resolver</h3>
+        <textarea id="scope-input" placeholder="Paste subdomains here (one per line)..." rows="4"></textarea>
+        <button id="btn-resolve" class="btn">Resolve Target Scope</button>
+        <div id="resolve-status" class="status-msg" style="text-align:left; color:#aaa;"></div>
+        <button id="btn-download-csv" class="btn">Download Results (CSV)</button>
+    </div>
+
+    <div class="section">
         <h3>Custom Header Injection</h3>
-        <div id="headers-container">
-            <!-- Populated dynamically via JS -->
-        </div>
+        <div id="headers-container"></div>
         <button id="save-headers" class="btn">Save & Apply Headers</button>
         <div id="save-status" class="status-msg"></div>
     </div>
