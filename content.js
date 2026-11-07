@@ -1,37 +1,67 @@
-const secretPatterns = {
-    "AWS Access Key": /AKIA[0-9A-Z]{16}/g,
-    "Google API Key": /AIza[0-9A-Za-z\-_]{35}/g,
-    "Stripe API Key": /sk_live_[0-9a-zA-Z]{24}/g,
-    "JSON Web Token (JWT)": /eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/g,
-    "RSA Private Key": /-----BEGIN RSA PRIVATE KEY-----/g,
-    "Slack Token": /xox[baprs]-[0-9a-zA-Z]{10,48}/g
-};
+// Site Leak Radar — content script.
+// Passively scans the already-rendered page: full HTML (named patterns) and
+// inline <script> contents (named patterns + generic high-entropy detector).
+// Also collects external <script src> URLs so the popup can offer a deep scan
+// of already-served bundles and their source maps — no new requests to
+// anything the browser hasn't already been pointed at by the page itself.
 
 function scanForLeaks() {
-    const pageContent = document.documentElement.innerHTML;
-    let foundLeaks = [];
+  let allFindings = [];
 
-    for (const [name, regex] of Object.entries(secretPatterns)) {
-        const matches = pageContent.match(regex);
-        if (matches) {
-            // Deduplicate matches
-            const uniqueMatches = [...new Set(matches)];
-            uniqueMatches.forEach(match => {
-                foundLeaks.push({ type: name, value: match });
-            });
-        }
-    }
+  // 1. Rendered page HTML — named patterns only (full HTML is too noisy for the
+  //    generic entropy check, which is reserved for script contexts below).
+  const pageHtml = document.documentElement.innerHTML;
+  allFindings = allFindings.concat(runNamedRules(pageHtml, "Page HTML"));
 
-    // Send findings to the popup if requested
-    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.action === "getLeaks") {
-            sendResponse({ leaks: foundLeaks, hostname: window.location.hostname });
-        }
-    });
+  // 2. Inline <script> tags — named patterns + generic keyword/entropy detector.
+  const inlineScripts = Array.from(document.querySelectorAll("script:not([src])"));
+  inlineScripts.forEach((script, idx) => {
+    const text = script.textContent || "";
+    if (!text.trim()) return;
+    const label = `Inline Script #${idx + 1}`;
+    allFindings = allFindings.concat(runNamedRules(text, label));
+    allFindings = allFindings.concat(runGenericDetector(text, label));
+  });
+
+  const uniqueFindings = dedupeFindings(allFindings);
+
+  // 3. Collect external <script src> URLs for popup-triggered deep scan.
+  const scriptUrls = Array.from(document.querySelectorAll("script[src]"))
+    .map((s) => s.getAttribute("src"))
+    .filter(Boolean)
+    .map((src) => {
+      try {
+        return new URL(src, window.location.href).href;
+      } catch (e) {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  return { findings: uniqueFindings, scriptUrls: [...new Set(scriptUrls)] };
+}
+
+let cachedResult = null;
+
+function runScan() {
+  cachedResult = scanForLeaks();
 }
 
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", scanForLeaks);
+  document.addEventListener("DOMContentLoaded", runScan);
 } else {
-    scanForLeaks();
+  runScan();
 }
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "getLeaks") {
+    if (!cachedResult) runScan();
+    sendResponse({
+      findings: cachedResult.findings,
+      scriptUrls: cachedResult.scriptUrls,
+      hostname: window.location.hostname,
+      origin: window.location.origin,
+    });
+  }
+  return true;
+});

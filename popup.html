@@ -3,15 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { width: 450px; background: #121212; color: #f1f1f1; font-family: monospace; margin: 0; padding: 15px; }
+        body { width: 480px; max-height: 600px; overflow-y: auto; background: #121212; color: #f1f1f1; font-family: monospace; margin: 0; padding: 15px; }
         h2 { margin: 0 0 15px 0; color: #ff9900; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
         .section { background: #1e1e1e; padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #333; }
         .section h3 { margin: 0 0 10px 0; font-size: 13px; color: #aaa; }
-        .leak-item { background: #2a2a2a; padding: 8px; margin-bottom: 5px; border-radius: 4px; font-size: 11px; word-break: break-all; border-left: 3px solid #ff3333; }
         .no-leaks { color: #00ff00; font-size: 12px; }
-        .btn { display: block; width: 100%; padding: 8px; margin-bottom: 8px; background: #333; color: #fff; text-align: center; text-decoration: none; border-radius: 4px; border: 1px solid #555; cursor: pointer; }
+        .btn { display: block; width: 100%; padding: 8px; margin-bottom: 8px; background: #333; color: #fff; text-align: center; text-decoration: none; border-radius: 4px; border: 1px solid #555; cursor: pointer; box-sizing: border-box; font-family: monospace; font-size: 12px; }
         .btn:hover { background: #ff9900; color: #111; border-color: #ff9900; }
-        
+
+        /* Finding cards */
+        .finding { background: #2a2a2a; padding: 8px; margin-bottom: 6px; border-radius: 4px; font-size: 11px; word-break: break-all; border-left: 3px solid #ff3333; }
+        .finding.sev-Medium { border-left-color: #ff9900; }
+        .finding.sev-Low { border-left-color: #666; }
+        .finding-type { font-weight: bold; color: #fff; }
+        .finding-sev { font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 6px; background: #ff3333; color: #111; }
+        .finding-sev.sev-Medium { background: #ff9900; }
+        .finding-sev.sev-Low { background: #666; color: #fff; }
+        .finding-source { color: #888; font-size: 10px; margin-top: 3px; }
+        .finding-value { color: #0ff; margin-top: 4px; }
+        .finding-context { color: #999; margin-top: 4px; font-style: italic; }
+        .copy-btn { margin-top: 6px; display: inline-block; background: #444; color: #fff; border: 1px solid #666; border-radius: 3px; padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: monospace; }
+        .copy-btn:hover { background: #ff9900; color: #111; }
+        .copy-btn.copied { background: #00cc66; color: #111; }
+
         /* Header Manager Styles */
         .header-row { display: flex; gap: 5px; margin-bottom: 6px; align-items: center; }
         .header-row input[type="text"] { flex: 1; background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 6px; border-radius: 3px; font-family: monospace; font-size: 11px; }
@@ -24,11 +38,28 @@
         #scope-input { width: 100%; box-sizing: border-box; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 8px; font-family: monospace; font-size: 11px; margin-bottom: 8px; border-radius: 4px; resize: vertical; }
         #btn-download-csv { background: #00cc66; color: #111; display: none; font-weight: bold; }
         #btn-download-csv:hover { background: #00b359; border-color: #00b359; }
+
+        /* Deep scan */
+        #deep-scan-status { font-size: 10px; color: #aaa; margin-bottom: 8px; min-height: 12px; }
+        #btn-deep-scan { background: #2b4a6f; border-color: #3b6ea5; }
+        #btn-deep-scan:hover { background: #3b6ea5; color: #fff; }
     </style>
 </head>
 <body>
     <h2>Site Leak Radar (Multi-Tool)</h2>
-    
+
+    <div class="section">
+        <h3>Detected Secrets — Page &amp; Inline Scripts</h3>
+        <div id="leak-container">Scanning current page...</div>
+    </div>
+
+    <div class="section">
+        <h3>Deep Scan — External Scripts &amp; Source Maps</h3>
+        <div id="deep-scan-status"></div>
+        <button id="btn-deep-scan" class="btn">Deep Scan Loaded JS Bundles</button>
+        <div id="deep-scan-container"></div>
+    </div>
+
     <div class="section">
         <h3>Bulk Scope Resolver</h3>
         <textarea id="scope-input" placeholder="Paste subdomains here (one per line)..." rows="4"></textarea>
@@ -40,13 +71,8 @@
     <div class="section">
         <h3>Custom Header Injection</h3>
         <div id="headers-container"></div>
-        <button id="save-headers" class="btn">Save & Apply Headers</button>
+        <button id="save-headers" class="btn">Save &amp; Apply Headers</button>
         <div id="save-status" class="status-msg"></div>
-    </div>
-
-    <div class="section">
-        <h3>Detected Secrets (DOM)</h3>
-        <div id="leak-container">Scanning current page...</div>
     </div>
 
     <div class="section">
@@ -55,6 +81,7 @@
         <a id="btn-subdomains" href="#" target="_blank" class="btn">View crt.sh Subdomains</a>
     </div>
 
+    <script src="rules.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>
