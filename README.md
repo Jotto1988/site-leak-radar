@@ -1,8 +1,8 @@
-# Site Leak Radar 📡
+# Site Leak Radar 🕷️
 
-A Manifest V3 browser extension for passive bug-bounty recon: detects leaked secrets already sitting in a page's rendered HTML, inline scripts, loaded JS bundles, and exposed source maps — generates external footprint dorks — and dynamically injects custom HTTP headers (like a bug-bounty tracking header) into all network requests.
+Recon that happens while you're already browsing. Site Leak Radar is a Manifest V3 extension that quietly watches every page you visit and surfaces what's already lying out in the open — secrets sitting in rendered HTML, inline scripts, loaded JS bundles, and exposed source maps — then hands you report-ready evidence, footprint dorks, and a scope resolver, all from one popup.
 
-Everything here is **passive**: it only reads what the target is already serving to any visitor's browser (the DOM, scripts the page itself requested, and source maps those scripts reference). It never probes for new endpoints, brute-forces anything, or sends traffic beyond fetching resources the page already pointed the browser at.
+It never probes for anything new. Every finding comes from something the target was already serving to any visitor by default: the DOM, scripts the page itself requested, and source maps those scripts reference. No endpoint guessing, no brute-forcing, no traffic beyond fetching resources the page already pointed the browser at.
 
 ## Features
 
