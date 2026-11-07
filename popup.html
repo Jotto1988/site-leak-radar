@@ -30,8 +30,13 @@
         .finding-source { color: #888; font-size: 10px; margin-top: 3px; }
         .finding-value { color: #0ff; margin-top: 4px; }
         .finding-context { color: #999; margin-top: 4px; font-style: italic; }
-        .copy-btn { margin-top: 6px; display: inline-block; background: #444; color: #fff; border: 1px solid #666; border-radius: 3px; padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: monospace; }
-        .copy-btn:hover { background: #ff9900; color: #111; }
+        .finding-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 6px; background: #c026d3; color: #fff; }
+        .finding-verify { color: #ffcc66; margin-top: 4px; font-size: 10px; }
+        .finding-verify::before { content: "⚠ "; }
+        .finding-ai { color: #84cc16; margin-top: 4px; font-size: 10px; }
+        .finding-ai::before { content: "✦ AI: "; }
+        .copy-btn, .repeater-send-btn { margin-top: 6px; display: inline-block; background: #444; color: #fff; border: 1px solid #666; border-radius: 3px; padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: monospace; }
+        .copy-btn:hover, .repeater-send-btn:hover { background: #ff9900; color: #111; }
         .copy-btn.copied { background: #00cc66; color: #111; }
 
         /* Header Manager Styles */
@@ -57,6 +62,28 @@
         #deep-scan-status { font-size: 10px; color: #aaa; margin-bottom: 8px; min-height: 12px; }
         #btn-deep-scan { background: #2b4a6f; border-color: #3b6ea5; }
         #btn-deep-scan:hover { background: #3b6ea5; color: #fff; }
+        .cors-toggle-row { display: flex; align-items: flex-start; gap: 6px; background: #241a0a; border: 1px solid #5a3d10; border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; color: #ffcc66; }
+        .cors-toggle-row input[type="checkbox"] { accent-color: #ff9900; width: 14px; height: 14px; cursor: pointer; margin-top: 1px; flex-shrink: 0; }
+
+        /* Request Lab (Repeater / Intruder) */
+        #request-lab textarea, #request-lab input[type="text"] { width: 100%; box-sizing: border-box; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 6px; font-family: monospace; font-size: 11px; margin-bottom: 6px; border-radius: 4px; resize: vertical; }
+        #request-lab select { background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 6px; font-family: monospace; font-size: 11px; border-radius: 4px; margin-bottom: 6px; }
+        .lab-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+        .lab-row select { flex-shrink: 0; }
+        .lab-row input[type="text"] { margin-bottom: 0; }
+        .lab-label { font-size: 10px; color: #888; margin: 6px 0 3px 0; }
+        .lab-hint { font-size: 9px; color: #666; margin: -3px 0 6px 0; }
+        #lab-send-row { display: flex; gap: 6px; }
+        #lab-send-row .btn { margin-bottom: 0; }
+        #btn-lab-send { background: #2b6f4a; border-color: #3ba55f; }
+        #btn-lab-send:hover { background: #3ba55f; }
+        #btn-lab-sweep { background: #6f2b4a; border-color: #a53b6e; }
+        #btn-lab-sweep:hover { background: #a53b6e; }
+        #lab-response { background: #0d0d0d; border: 1px solid #333; border-radius: 4px; padding: 8px; font-size: 10px; margin-top: 8px; max-height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+        #lab-sweep-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 8px; }
+        #lab-sweep-table th, #lab-sweep-table td { border: 1px solid #333; padding: 4px 6px; text-align: left; word-break: break-all; }
+        #lab-sweep-table th { background: #2a2a2a; color: #aaa; }
+        #lab-sweep-table tr.anomaly { background: #3a1f1f; }
     </style>
 </head>
 <body>
@@ -78,9 +105,52 @@
 
     <div class="section">
         <h3>Deep Scan — External Scripts &amp; Source Maps</h3>
+        <label class="cors-toggle-row">
+            <input type="checkbox" id="cors-override">
+            <span>Allow cross-origin deep scan (I will verify ownership before reporting). Every result from this is tagged CROSS-ORIGIN.</span>
+        </label>
         <div id="deep-scan-status"></div>
         <button id="btn-deep-scan" class="btn">Deep Scan Loaded JS Bundles</button>
         <div id="deep-scan-container"></div>
+    </div>
+
+    <div class="section" id="request-lab">
+        <h3>Request Lab — Repeater / Intruder</h3>
+        <div class="lab-hint">Manual replay &amp; payload-swap testing. Custom headers below ride along automatically (same declarativeNetRequest rule as the rest of the tool). Use §payload§ as a marker in URL / Headers / Body for the sweep.</div>
+
+        <div class="lab-row">
+            <select id="lab-method">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+                <option>HEAD</option>
+                <option>OPTIONS</option>
+            </select>
+            <input type="text" id="lab-url" placeholder="https://target.com/api/path?id=§payload§">
+        </div>
+
+        <div class="lab-label">Headers (one per line, "Name: Value")</div>
+        <textarea id="lab-headers" rows="3" placeholder="X-Custom-Header: §payload§"></textarea>
+
+        <div class="lab-label">Body (optional)</div>
+        <textarea id="lab-body" rows="3" placeholder='{"id": "§payload§"}'></textarea>
+
+        <div id="lab-send-row">
+            <button id="btn-lab-send" class="btn">Send (Repeater)</button>
+        </div>
+
+        <div class="lab-label" style="margin-top:12px;">Payload list (Intruder — one per line, substitutes §payload§)</div>
+        <textarea id="lab-payloads" rows="3" placeholder="1&#10;' OR '1'='1&#10;../../../etc/passwd"></textarea>
+        <button id="btn-lab-sweep" class="btn">Run Payload Sweep</button>
+
+        <div id="lab-status" class="status-msg" style="text-align:left; color:#aaa;"></div>
+        <div id="lab-response" style="display:none;"></div>
+        <table id="lab-sweep-table" style="display:none;">
+            <thead><tr><th>#</th><th>Payload</th><th>Status</th><th>Length</th><th>Time (ms)</th></tr></thead>
+            <tbody id="lab-sweep-tbody"></tbody>
+        </table>
     </div>
 
     <div class="section">
@@ -112,6 +182,7 @@
     </div>
 
     <script src="rules.js"></script>
+    <script src="ai.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>

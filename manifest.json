@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Site Leak Radar",
-  "version": "1.5.0",
-  "description": "Passively detects leaked secrets (incl. exposed source maps), generates footprint dorks, and injects custom HTTP headers.",
+  "version": "1.6.0",
+  "description": "Passively detects leaked secrets (incl. exposed source maps), generates footprint dorks, injects custom HTTP headers, and includes a manual Repeater/Intruder request lab.",
   "permissions": [
     "activeTab",
     "scripting",

@@ -10,6 +10,11 @@ let currentTabId = null;
 let currentOrigin = null;
 let discoveredScriptUrls = [];
 
+function extractUrlFromSource(source) {
+  const m = (source || "").match(/https?:\/\/[^\s)]+/);
+  return m ? m[0] : null;
+}
+
 function renderFindings(containerEl, findings, emptyMessage) {
   if (!findings || findings.length === 0) {
     containerEl.innerHTML = `<div class="no-leaks">${emptyMessage}</div>`;
@@ -19,13 +24,20 @@ function renderFindings(containerEl, findings, emptyMessage) {
   findings.forEach((f, idx) => {
     const div = document.createElement("div");
     div.className = `finding sev-${f.severity}`;
-    const evidenceId = `evidence-${Math.random().toString(36).slice(2)}`;
+    const sourceUrl = extractUrlFromSource(f.source);
     div.innerHTML = `
-      <div><span class="finding-type">${escapeHtml(f.type)}</span><span class="finding-sev sev-${f.severity}">${f.severity}</span></div>
+      <div>
+        <span class="finding-type">${escapeHtml(f.type)}</span>
+        <span class="finding-sev sev-${f.severity}">${f.severity}</span>
+        ${f.crossOrigin ? '<span class="finding-badge">CROSS-ORIGIN</span>' : ""}
+      </div>
       <div class="finding-source">Source: ${escapeHtml(f.source)}</div>
       <div class="finding-value">${escapeHtml(f.value)}</div>
       <div class="finding-context">${escapeHtml(f.context)}</div>
+      ${f.verifyNote ? `<div class="finding-verify">${escapeHtml(f.verifyNote)}</div>` : ""}
+      ${f.aiNote ? `<div class="finding-ai">${escapeHtml(f.aiNote)}</div>` : ""}
       <button class="copy-btn" data-idx="${idx}">Copy evidence</button>
+      ${sourceUrl ? `<button class="repeater-send-btn" data-url="${escapeHtml(sourceUrl)}">↗ Send URL to Repeater</button>` : ""}
     `;
     containerEl.appendChild(div);
 
@@ -36,7 +48,9 @@ function renderFindings(containerEl, findings, emptyMessage) {
         `Severity: ${f.severity}\n` +
         `Source: ${f.source}\n` +
         `Value: ${f.value}\n` +
-        `Context: ${f.context}`;
+        `Context: ${f.context}` +
+        (f.crossOrigin ? `\nNOTE: CROSS-ORIGIN — verify ownership before reporting.` : "") +
+        (f.verifyNote ? `\nVerify: ${f.verifyNote}` : "");
       navigator.clipboard.writeText(evidenceText).then(() => {
         copyBtn.textContent = "Copied!";
         copyBtn.classList.add("copied");
@@ -46,6 +60,14 @@ function renderFindings(containerEl, findings, emptyMessage) {
         }, 1500);
       });
     });
+
+    const repeaterBtn = div.querySelector(".repeater-send-btn");
+    if (repeaterBtn) {
+      repeaterBtn.addEventListener("click", () => {
+        document.getElementById("lab-url").value = repeaterBtn.dataset.url;
+        document.getElementById("request-lab").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
   });
 }
 
@@ -134,7 +156,7 @@ function getTargetTab(callback) {
   }
 }
 
-function loadTargetTab(tab) {
+async function loadTargetTab(tab) {
   const targetLabel = document.getElementById("target-label");
 
   if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
@@ -157,13 +179,14 @@ function loadTargetTab(tab) {
   const org = document.getElementById("github-org-input").value.trim();
   renderDorks(domain, org);
 
-  chrome.tabs.sendMessage(tab.id, { action: "getLeaks" }, function (response) {
+  chrome.tabs.sendMessage(tab.id, { action: "getLeaks" }, async function (response) {
     const container = document.getElementById("leak-container");
     if (chrome.runtime.lastError || !response) {
       container.innerHTML = '<div class="no-leaks">Could not scan this page (restricted or not yet loaded).</div>';
       return;
     }
-    renderFindings(container, response.findings, "No obvious secrets found in rendered HTML or inline scripts.");
+    const classified = await classifyFindings(response.findings || []);
+    renderFindings(container, classified, "No obvious secrets found in rendered HTML or inline scripts.");
     discoveredScriptUrls = response.scriptUrls || [];
     document.getElementById("deep-scan-status").textContent =
       discoveredScriptUrls.length > 0
@@ -233,13 +256,17 @@ if (isStandalone) {
 document.getElementById("btn-deep-scan").addEventListener("click", async () => {
   const statusEl = document.getElementById("deep-scan-status");
   const resultsEl = document.getElementById("deep-scan-container");
+  const corsOverride = document.getElementById("cors-override").checked;
 
   if (discoveredScriptUrls.length === 0) {
     statusEl.textContent = "No external scripts to scan.";
     return;
   }
 
-  // Stay same-origin by default — safest default for program scope.
+  // Same-origin by default — safest default for program scope. With the
+  // override checked, cross-origin scripts are scanned too, but every
+  // finding that comes from one is tagged CROSS-ORIGIN (see render below) so
+  // it can never slip into a report as first-party by accident.
   const sameOriginUrls = discoveredScriptUrls.filter((u) => {
     try {
       return new URL(u).origin === currentOrigin;
@@ -247,28 +274,40 @@ document.getElementById("btn-deep-scan").addEventListener("click", async () => {
       return false;
     }
   });
+  const crossOriginUrls = corsOverride
+    ? discoveredScriptUrls.filter((u) => !sameOriginUrls.includes(u))
+    : [];
+  const urlsToScan = [...sameOriginUrls, ...crossOriginUrls];
 
-  if (sameOriginUrls.length === 0) {
-    statusEl.textContent = "Scripts found are all cross-origin (e.g. CDN) — skipped by default to stay in scope.";
+  if (urlsToScan.length === 0) {
+    statusEl.textContent = "Scripts found are all cross-origin (e.g. CDN) — skipped by default to stay in scope. Check the override above to scan them anyway.";
     resultsEl.innerHTML = "";
     return;
   }
 
-  statusEl.textContent = `Deep scanning 0 / ${sameOriginUrls.length} same-origin script(s)...`;
+  statusEl.textContent = `Deep scanning 0 / ${urlsToScan.length} script(s)...`;
   resultsEl.innerHTML = '<div class="no-leaks" style="color:#aaa;">Working...</div>';
 
   let allFindings = [];
   let mapsFound = 0;
 
-  for (let i = 0; i < sameOriginUrls.length; i++) {
-    const scriptUrl = sameOriginUrls[i];
+  for (let i = 0; i < urlsToScan.length; i++) {
+    const scriptUrl = urlsToScan[i];
+    let isCrossOrigin = false;
+    try {
+      isCrossOrigin = new URL(scriptUrl).origin !== currentOrigin;
+    } catch (e) {
+      isCrossOrigin = false;
+    }
+
     try {
       const res = await fetch(scriptUrl, { method: "GET" });
       if (!res.ok) continue;
       const text = await res.text();
       const label = `External Bundle: ${scriptUrl}`;
-      allFindings = allFindings.concat(runNamedRules(text, label));
-      allFindings = allFindings.concat(runGenericDetector(text, label));
+      const tag = (f) => ({ ...f, crossOrigin: isCrossOrigin });
+      allFindings = allFindings.concat(runNamedRules(text, label).map(tag));
+      allFindings = allFindings.concat(runGenericDetector(text, label).map(tag));
 
       // Check for a trailing source map reference.
       const mapMatch = text.match(/\/\/[#@]\s*sourceMappingURL=([^\s]+)/);
@@ -284,8 +323,8 @@ document.getElementById("btn-deep-scan").addEventListener("click", async () => {
               mapJson.sourcesContent.forEach((src, idx) => {
                 if (!src) return;
                 const fileLabel = `${mapLabel} (${(mapJson.sources && mapJson.sources[idx]) || "source #" + idx})`;
-                allFindings = allFindings.concat(runNamedRules(src, fileLabel));
-                allFindings = allFindings.concat(runGenericDetector(src, fileLabel));
+                allFindings = allFindings.concat(runNamedRules(src, fileLabel).map(tag));
+                allFindings = allFindings.concat(runGenericDetector(src, fileLabel).map(tag));
               });
             }
           }
@@ -296,12 +335,14 @@ document.getElementById("btn-deep-scan").addEventListener("click", async () => {
     } catch (err) {
       // Fetch failed (CORS, network, etc.) — skip this file.
     }
-    statusEl.textContent = `Deep scanning ${i + 1} / ${sameOriginUrls.length} same-origin script(s)...`;
+    statusEl.textContent = `Deep scanning ${i + 1} / ${urlsToScan.length} script(s)...`;
   }
 
   allFindings = dedupeFindings(allFindings);
+  allFindings = await classifyFindings(allFindings);
+
   statusEl.textContent =
-    `Scanned ${sameOriginUrls.length} script(s), found ${mapsFound} exposed source map(s). ` +
+    `Scanned ${urlsToScan.length} script(s) (${crossOriginUrls.length} cross-origin), found ${mapsFound} exposed source map(s). ` +
     `${allFindings.length} finding(s) total.`;
   renderFindings(resultsEl, allFindings, "No secrets found in fetched bundles or their source maps.");
 });
@@ -405,4 +446,144 @@ document.getElementById("btn-resolve").addEventListener("click", async () => {
     link.click();
     document.body.removeChild(link);
   };
+});
+
+// ---- 5. Request Lab — Repeater / Intruder ----
+// Manual-entry request replay. Fetches run from the extension's own context,
+// which — same as the Bulk Scope Resolver above — carries host_permissions
+// (<all_urls>) past ordinary CORS restrictions, and the saved custom header
+// (declarativeNetRequest rule) rides along automatically on every request,
+// same as it does everywhere else in the tool.
+//
+// Known limitation worth remembering: this is NOT the same network stack as
+// the page itself. Strict/Lax SameSite session cookies tied to a real
+// top-level navigation won't necessarily ride along on a fetch initiated
+// from the extension's own origin — fine for header/param/WAF-response
+// testing, not a substitute for testing authenticated, cookie-gated flows.
+
+const PAYLOAD_MARKER = "§payload§";
+
+function parseHeaderLines(text) {
+  const headers = {};
+  (text || "").split("\n").forEach((line) => {
+    const idx = line.indexOf(":");
+    if (idx === -1) return;
+    const name = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1).trim();
+    if (name) headers[name] = value;
+  });
+  return headers;
+}
+
+function substitutePayload(text, payload) {
+  return (text || "").split(PAYLOAD_MARKER).join(payload);
+}
+
+async function fireRequest(method, url, headers, body) {
+  const start = performance.now();
+  const opts = { method, headers };
+  if (body && !["GET", "HEAD"].includes(method)) opts.body = body;
+  let status = null;
+  let text = "";
+  let error = null;
+  try {
+    const res = await fetch(url, opts);
+    status = res.status;
+    text = await res.text();
+  } catch (err) {
+    error = err.message || String(err);
+  }
+  const time = Math.round(performance.now() - start);
+  return { status, text, error, time };
+}
+
+document.getElementById("btn-lab-send").addEventListener("click", async () => {
+  const statusEl = document.getElementById("lab-status");
+  const responseEl = document.getElementById("lab-response");
+  document.getElementById("lab-sweep-table").style.display = "none";
+
+  const method = document.getElementById("lab-method").value;
+  const url = document.getElementById("lab-url").value.trim();
+  if (!url) {
+    statusEl.textContent = "Enter a URL first.";
+    return;
+  }
+  const headers = parseHeaderLines(document.getElementById("lab-headers").value);
+  const body = document.getElementById("lab-body").value;
+
+  statusEl.textContent = "Sending...";
+  responseEl.style.display = "none";
+
+  const result = await fireRequest(method, url, headers, body);
+
+  if (result.error) {
+    statusEl.textContent = `Request failed: ${result.error}`;
+    return;
+  }
+
+  statusEl.textContent = `${result.status} — ${result.text.length} bytes — ${result.time}ms`;
+  responseEl.style.display = "block";
+  responseEl.textContent = result.text.slice(0, 5000) + (result.text.length > 5000 ? "\n…(truncated)" : "");
+});
+
+document.getElementById("btn-lab-sweep").addEventListener("click", async () => {
+  const statusEl = document.getElementById("lab-status");
+  const responseEl = document.getElementById("lab-response");
+  const table = document.getElementById("lab-sweep-table");
+  const tbody = document.getElementById("lab-sweep-tbody");
+  responseEl.style.display = "none";
+
+  const method = document.getElementById("lab-method").value;
+  const urlTemplate = document.getElementById("lab-url").value.trim();
+  const headersTemplate = document.getElementById("lab-headers").value;
+  const bodyTemplate = document.getElementById("lab-body").value;
+  const payloads = document.getElementById("lab-payloads").value
+    .split("\n")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  if (!urlTemplate) {
+    statusEl.textContent = "Enter a URL (with §payload§ where it should be substituted) first.";
+    return;
+  }
+  if (payloads.length === 0) {
+    statusEl.textContent = "Add at least one payload line.";
+    return;
+  }
+
+  tbody.innerHTML = "";
+  table.style.display = "table";
+  statusEl.textContent = `Sweeping 0 / ${payloads.length}...`;
+
+  // Baseline (first payload) used only to flag anomalies by response length —
+  // a quick visual cue, not a verdict. Sequential, not parallel, to respect
+  // program rate limits.
+  let baselineLength = null;
+
+  for (let i = 0; i < payloads.length; i++) {
+    const payload = payloads[i];
+    const url = substitutePayload(urlTemplate, payload);
+    const headers = parseHeaderLines(substitutePayload(headersTemplate, payload));
+    const body = substitutePayload(bodyTemplate, payload);
+
+    const result = await fireRequest(method, url, headers, body);
+    const length = result.error ? 0 : result.text.length;
+    if (baselineLength === null && !result.error) baselineLength = length;
+
+    const row = document.createElement("tr");
+    const isAnomaly = baselineLength !== null && Math.abs(length - baselineLength) > Math.max(20, baselineLength * 0.1);
+    if (isAnomaly) row.classList.add("anomaly");
+    row.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${escapeHtml(payload)}</td>
+      <td>${result.error ? "ERR" : result.status}</td>
+      <td>${length}</td>
+      <td>${result.time}</td>
+    `;
+    tbody.appendChild(row);
+
+    statusEl.textContent = `Sweeping ${i + 1} / ${payloads.length}...`;
+  }
+
+  statusEl.textContent = `Finished sweeping ${payloads.length} payload(s). Rows flagged in red differ from the baseline response length by >10% — worth a manual look, not an automatic finding.`;
 });

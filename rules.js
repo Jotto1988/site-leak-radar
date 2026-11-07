@@ -34,7 +34,31 @@ const NAMED_RULES = [
   { id: "Private Key Block", regex: /-----BEGIN (?:RSA |DSA |EC |OPENSSH |)PRIVATE KEY-----/g, severity: "High" },
   { id: "PGP Private Key Block", regex: /-----BEGIN PGP PRIVATE KEY BLOCK-----/g, severity: "High" },
   { id: "JSON Web Token (JWT)", regex: /eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/g, severity: "Medium" },
+
+  // ---- Added for broader surface coverage ----
+  { id: "Azure Storage Account Key", regex: /DefaultEndpointsProtocol=https?;AccountName=[A-Za-z0-9]+;AccountKey=[A-Za-z0-9+\/=]{86,88}/g, severity: "High" },
+  { id: "Azure Client Secret (contextual)", regex: /azure[_-]?client[_-]?secret\s*[:=]\s*['"]?([A-Za-z0-9_\-~\.]{32,44})['"]?/gi, severity: "High" },
+  { id: "Algolia Admin API Key (contextual)", regex: /algolia[_-]?(?:admin[_-]?)?api[_-]?key\s*[:=]\s*['"]?([a-f0-9]{32})['"]?/gi, severity: "Medium" },
+  { id: "Datadog API Key (contextual)", regex: /dd[_-]?api[_-]?key\s*[:=]\s*['"]?([a-f0-9]{32})['"]?/gi, severity: "Medium" },
+  { id: "New Relic Browser License Key", regex: /NRJS-[a-f0-9]{19}\b/g, severity: "Low" },
+  { id: "Auth0 Client Secret (contextual)", regex: /auth0[_-]?client[_-]?secret\s*[:=]\s*['"]?([A-Za-z0-9_\-]{48,64})['"]?/gi, severity: "High" },
+  { id: "Okta API Token (contextual)", regex: /okta[_-]?api[_-]?token\s*[:=]\s*['"]?([A-Za-z0-9_\-]{40,42})['"]?/gi, severity: "High" },
+  { id: "Discord Bot Token", regex: /\b[MN][A-Za-z\d]{23}\.[\w-]{6}\.[\w-]{27}\b/g, severity: "High" },
+  { id: "Telegram Bot Token", regex: /\b\d{8,10}:[A-Za-z0-9_-]{35}\b/g, severity: "High" },
+  { id: "Bearer Token (contextual)", regex: /Authorization['"]?\s*[:=]\s*['"]Bearer\s+([A-Za-z0-9\-_\.]{20,})['"]/gi, severity: "Medium" },
+  { id: "Heroku API Key (contextual)", regex: /heroku[_-]?api[_-]?key\s*[:=]\s*['"]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})['"]?/gi, severity: "High" },
 ];
+
+// Rule IDs whose matches are commonly exposed on purpose (public-by-design
+// credentials, or ambiguous formats that need live testing to confirm impact).
+// Shown as a verify-before-reporting note on the finding card rather than
+// silently hidden, so the researcher still sees it but isn't fooled by it.
+const VERIFY_NOTES = {
+  "Stripe Publishable Key": "Publishable by design, not a secret on its own — check for a paired live secret key before treating this as a finding.",
+  "Google OAuth Client ID": "Public half of the OAuth handshake by design — only the paired client secret is sensitive.",
+  "Google API Key": "Ambiguous format — could be a restricted public web key (Maps/Firebase) or an unrestricted key. Needs a live API test before it's a finding.",
+  "New Relic Browser License Key": "Browser agent license keys are meant to ship client-side — not a finding on its own.",
+};
 
 // Generic keyword + high-entropy detector — catches unnamed/custom secrets, TruffleHog-style.
 const GENERIC_KEYWORD_REGEX = /\b(api[_-]?key|apikey|secret|token|auth[_-]?token|client[_-]?secret|private[_-]?key|access[_-]?key|password|passwd)\b\s*[:=]\s*['"]([A-Za-z0-9+\/_\-\.]{16,100})['"]/gi;
@@ -77,6 +101,7 @@ function runNamedRules(text, source) {
         value: value,
         context: contextSnippet(text, m.index, m[0].length),
         source: source,
+        verifyNote: VERIFY_NOTES[rule.id] || null,
       });
       if (m[0].length === 0) rule.regex.lastIndex++; // avoid infinite loop on zero-length matches
     }
@@ -102,6 +127,7 @@ function runGenericDetector(text, source) {
         value: value,
         context: contextSnippet(text, m.index, m[0].length),
         source: source,
+        verifyNote: null,
       });
     }
   }
@@ -123,5 +149,5 @@ function dedupeFindings(findings) {
 
 // Node/content-script (CommonJS-free) export shim — harmless in both browser contexts.
 if (typeof module !== "undefined") {
-  module.exports = { NAMED_RULES, runNamedRules, runGenericDetector, dedupeFindings, shannonEntropy, contextSnippet };
+  module.exports = { NAMED_RULES, VERIFY_NOTES, runNamedRules, runGenericDetector, dedupeFindings, shannonEntropy, contextSnippet };
 }
