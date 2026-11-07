@@ -12,6 +12,7 @@ It never probes for anything new. Every finding comes from something the target 
 * **Report-Ready Evidence:** Every finding shows its type, severity, source, matched value, and a surrounding context snippet, with a one-click "Copy evidence" button that produces a clean text block ready to paste under a screenshot in a report.
 * **Footprint Generation:** Generates a crt.sh subdomain query for the active tab's domain, plus a set of targeted GitHub dorks — domain + secret-shaped keywords/filenames (`.env`, `config.json`, `application.properties`, etc.), and, if you give it a GitHub org name, org-scoped secret hunts across that org's public repos. A bare domain search is mostly donate-button noise; these are built to surface actual leaked-credential candidates.
 * **Bulk Scope Resolver:** Paste a list of domains/subdomains, resolve all of them (with your custom headers attached), and export resolved URL + status code to CSV.
+* **Standalone Window:** The toolbar popup closes the instant you click the page behind it — fine for a quick glance, bad for working a target over several minutes. Click "⧉ Open in Window" to pop the whole tool out into its own persistent window that stays open while you click around, navigate, or switch tabs. It stays pinned to whichever tab you opened it from — auto-refreshing when that tab finishes loading a new page — until you hit "Retarget to Active Tab" to point it at whatever tab is currently active instead.
 * **Zero Dependencies:** Pure vanilla JavaScript, HTML, and CSS.
 
 ## How to Install (Unpacked)

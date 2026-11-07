@@ -3,8 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <style>
-        body { width: 480px; max-height: 600px; overflow-y: auto; background: #121212; color: #f1f1f1; font-family: monospace; margin: 0; padding: 15px; }
-        h2 { margin: 0 0 15px 0; color: #ff9900; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        html, body { height: 100%; }
+        body { width: 480px; max-height: 600px; overflow-y: auto; background: #121212; color: #f1f1f1; font-family: monospace; margin: 0; padding: 15px; box-sizing: border-box; }
+        body.standalone { width: auto; max-height: none; height: 100%; }
+        .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
+        h2 { margin: 0; color: #ff9900; font-size: 16px; }
+        #btn-open-window { width: auto; margin: 0; padding: 6px 10px; font-size: 10px; white-space: nowrap; }
+        #window-controls { display: none; align-items: center; gap: 6px; background: #1e1e1e; border: 1px solid #333; border-radius: 6px; padding: 8px 10px; margin-bottom: 15px; font-size: 10px; }
+        #window-controls .wc-label { color: #888; flex-shrink: 0; }
+        #target-label { color: #0ff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #btn-retarget { width: auto; margin: 0; padding: 5px 8px; font-size: 10px; flex-shrink: 0; }
         .section { background: #1e1e1e; padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #333; }
         .section h3 { margin: 0 0 10px 0; font-size: 13px; color: #aaa; }
         .no-leaks { color: #00ff00; font-size: 12px; }
@@ -52,7 +60,16 @@
     </style>
 </head>
 <body>
-    <h2>Site Leak Radar (Multi-Tool)</h2>
+    <div class="title-row">
+        <h2>Site Leak Radar (Multi-Tool)</h2>
+        <button id="btn-open-window" class="btn" title="Open as a standalone window that stays put while you click around the page">⧉ Open in Window</button>
+    </div>
+
+    <div id="window-controls">
+        <span class="wc-label">Target:</span>
+        <span id="target-label">—</span>
+        <button id="btn-retarget" class="btn">Retarget to Active Tab</button>
+    </div>
 
     <div class="section">
         <h3>Detected Secrets — Page &amp; Inline Scripts</h3>

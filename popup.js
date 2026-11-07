@@ -1,5 +1,11 @@
 // ===== Site Leak Radar — popup.js =====
 
+// Extension pages block inline <script> via CSP, so the standalone-mode body
+// class has to be set here rather than with an inline snippet in popup.html.
+if (new URLSearchParams(window.location.search).get("standalone") === "1") {
+  document.body.classList.add("standalone");
+}
+
 let currentTabId = null;
 let currentOrigin = null;
 let discoveredScriptUrls = [];
@@ -107,23 +113,51 @@ function renderDorks(domain, org) {
 }
 
 // ---- 1. Page scan (content script) + footprint links ----
-chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-  const currentTab = tabs[0];
-  currentTabId = currentTab.id;
-  const url = new URL(currentTab.url);
+// Two modes:
+//  - Normal popup (click the toolbar icon): always targets whatever tab is
+//    active in the current window, and closes the moment focus leaves it.
+//  - Standalone window (opened via "Open in Window"): stays open regardless
+//    of what you click elsewhere, and keeps scanning one *pinned* tab —
+//    identified by ?tabId=<id> in its own URL — until you hit "Retarget".
+
+const urlParams = new URLSearchParams(window.location.search);
+const isStandalone = urlParams.get("standalone") === "1";
+let targetTabId = urlParams.has("tabId") ? parseInt(urlParams.get("tabId"), 10) : null;
+
+function getTargetTab(callback) {
+  if (targetTabId !== null) {
+    chrome.tabs.get(targetTabId, (tab) => {
+      callback(chrome.runtime.lastError ? null : tab);
+    });
+  } else {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => callback(tabs[0] || null));
+  }
+}
+
+function loadTargetTab(tab) {
+  const targetLabel = document.getElementById("target-label");
+
+  if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
+    document.getElementById("leak-container").innerHTML =
+      '<div class="no-leaks" style="color:#ff6666;">No valid target page (closed, or a restricted chrome:// page). Use Retarget to pick an active tab.</div>';
+    document.getElementById("deep-scan-status").textContent = "";
+    if (targetLabel) targetLabel.textContent = "No target";
+    return;
+  }
+
+  currentTabId = tab.id;
+  targetTabId = tab.id;
+  const url = new URL(tab.url);
   currentOrigin = url.origin;
   const domain = url.hostname.replace(/^www\./, "");
 
+  if (targetLabel) targetLabel.textContent = tab.url;
+
   document.getElementById("btn-subdomains").href = `https://crt.sh/?q=%25.${domain}`;
-  document.getElementById("github-org-input").dataset.domain = domain;
-  renderDorks(domain, "");
+  const org = document.getElementById("github-org-input").value.trim();
+  renderDorks(domain, org);
 
-  document.getElementById("btn-rebuild-dorks").addEventListener("click", () => {
-    const org = document.getElementById("github-org-input").value.trim();
-    renderDorks(domain, org);
-  });
-
-  chrome.tabs.sendMessage(currentTab.id, { action: "getLeaks" }, function (response) {
+  chrome.tabs.sendMessage(tab.id, { action: "getLeaks" }, function (response) {
     const container = document.getElementById("leak-container");
     if (chrome.runtime.lastError || !response) {
       container.innerHTML = '<div class="no-leaks">Could not scan this page (restricted or not yet loaded).</div>';
@@ -136,7 +170,64 @@ chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         ? `${discoveredScriptUrls.length} external script(s) detected on this page.`
         : "No external <script src> files detected on this page.";
   });
+}
+
+getTargetTab(loadTargetTab);
+
+document.getElementById("btn-rebuild-dorks").addEventListener("click", () => {
+  getTargetTab((tab) => {
+    if (!tab || !tab.url) return;
+    const domain = new URL(tab.url).hostname.replace(/^www\./, "");
+    const org = document.getElementById("github-org-input").value.trim();
+    renderDorks(domain, org);
+  });
 });
+
+// ---- Standalone-window controls ----
+const windowControls = document.getElementById("window-controls");
+const openWindowBtn = document.getElementById("btn-open-window");
+
+if (isStandalone) {
+  if (windowControls) windowControls.style.display = "flex";
+  if (openWindowBtn) openWindowBtn.style.display = "none";
+
+  // Auto-refresh when the pinned tab finishes loading a new page.
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (tabId === targetTabId && changeInfo.status === "complete") {
+      loadTargetTab(tab);
+    }
+  });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    if (tabId === targetTabId) {
+      loadTargetTab(null);
+    }
+  });
+
+  const retargetBtn = document.getElementById("btn-retarget");
+  if (retargetBtn) {
+    retargetBtn.addEventListener("click", () => {
+      chrome.windows.getLastFocused({ windowTypes: ["normal"], populate: true }, (win) => {
+        const activeTab = win && win.tabs ? win.tabs.find((t) => t.active) : null;
+        if (activeTab) loadTargetTab(activeTab);
+      });
+    });
+  }
+} else if (openWindowBtn) {
+  openWindowBtn.addEventListener("click", () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs[0];
+      if (!tab) return;
+      chrome.windows.create({
+        url: chrome.runtime.getURL(`popup.html?standalone=1&tabId=${tab.id}`),
+        type: "popup",
+        width: 520,
+        height: 720,
+      });
+      window.close();
+    });
+  });
+}
 
 // ---- 2. Deep scan: fetch external scripts + source maps, scan both ----
 document.getElementById("btn-deep-scan").addEventListener("click", async () => {
