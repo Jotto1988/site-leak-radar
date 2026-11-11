@@ -8,7 +8,104 @@ if (new URLSearchParams(window.location.search).get("standalone") === "1") {
 
 let currentTabId = null;
 let currentOrigin = null;
+let currentDomain = null;
 let discoveredScriptUrls = [];
+
+// ---- Session Log / Steps-to-Reproduce ----
+// Every meaningful action (header set, scan run, request sent, sweep run,
+// resolver run, footprint link opened) gets timestamped here. The point:
+// this tool should feel like a procedure someone else could rerun and land
+// on the same result, not just a one-off scan — this log is the record of
+// exactly what was done, in order, with exact URLs/payloads/headers, ready
+// to paste into a report's "Steps to Reproduce" field.
+let sessionLog = [];
+const stepDone = { 1: false, 2: false, 3: false, 4: false, 5: false, 6: false };
+
+function logEvent(step, text) {
+  sessionLog.push({ time: new Date(), step, text });
+  stepDone[step] = true;
+  renderSessionLog();
+  markStepUI(step);
+}
+
+function markStepUI(step) {
+  const dot = document.querySelector(`.step-dot[data-step="${step}"]`);
+  if (dot) dot.classList.add("done");
+  const badge = document.getElementById(`badge-${step}`);
+  if (badge) badge.classList.add("done");
+}
+
+function renderSessionLog() {
+  const container = document.getElementById("session-log");
+  if (sessionLog.length === 0) {
+    container.innerHTML = '<div class="log-empty">No actions logged yet this session.</div>';
+    return;
+  }
+  container.innerHTML = "";
+  sessionLog.forEach((entry) => {
+    const div = document.createElement("div");
+    div.className = "log-entry";
+    div.innerHTML = `<span class="log-time">${entry.time.toLocaleTimeString()}</span><span class="log-step">STEP ${entry.step}</span>${escapeHtml(entry.text)}`;
+    container.appendChild(div);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+async function buildReproText() {
+  const { customHeaders } = await chrome.storage.local.get(["customHeaders"]);
+  const activeHeaders = (customHeaders || []).filter((h) => h.active && h.name && h.value);
+  const headerLine =
+    activeHeaders.length > 0
+      ? `Attribution header used throughout: ${activeHeaders.map((h) => `${h.name}: ${h.value}`).join(", ")}`
+      : "No attribution header was set during this session.";
+
+  const header = `Steps to Reproduce — ${currentDomain || "(no target)"} — ${new Date().toLocaleString()}\n\n${headerLine}\n`;
+
+  if (sessionLog.length === 0) {
+    return header + "\n(No actions logged yet.)";
+  }
+
+  const steps = sessionLog
+    .map((entry, idx) => `${idx + 1}. [${entry.time.toLocaleTimeString()}] ${entry.text}`)
+    .join("\n");
+
+  return header + "\n" + steps;
+}
+
+document.getElementById("btn-copy-repro").addEventListener("click", async () => {
+  const text = await buildReproText();
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("btn-copy-repro");
+    const original = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => (btn.textContent = original), 1500);
+  });
+});
+
+document.getElementById("btn-clear-log").addEventListener("click", () => {
+  sessionLog = [];
+  renderSessionLog();
+});
+
+// ---- Status bar ----
+function setTargetPill(text) {
+  const el = document.getElementById("status-target-pill");
+  if (el) el.textContent = text;
+}
+
+async function refreshHeaderPill() {
+  const { customHeaders } = await chrome.storage.local.get(["customHeaders"]);
+  const activeHeaders = (customHeaders || []).filter((h) => h.active && h.name && h.value);
+  const pill = document.getElementById("status-header-pill");
+  if (!pill) return;
+  if (activeHeaders.length > 0) {
+    pill.textContent = activeHeaders.length === 1 ? activeHeaders[0].name.toUpperCase() + " ON" : `${activeHeaders.length} HEADERS ON`;
+    pill.className = "on";
+  } else {
+    pill.textContent = "HEADER OFF";
+    pill.className = "off";
+  }
+}
 
 function extractUrlFromSource(source) {
   const m = (source || "").match(/https?:\/\/[^\s)]+/);
@@ -130,6 +227,7 @@ function renderDorks(domain, org) {
     a.rel = "noopener noreferrer";
     a.href = `https://github.com/search?q=${encodeURIComponent(d.query)}&type=code`;
     a.innerHTML = `<span class="dork-label">${escapeHtml(d.label)}</span><span class="dork-query">${escapeHtml(d.query)}</span>`;
+    a.addEventListener("click", () => logEvent(6, `Opened GitHub dork — ${d.label}: ${d.query}`));
     container.appendChild(a);
   });
 }
@@ -164,6 +262,7 @@ async function loadTargetTab(tab) {
       '<div class="no-leaks" style="color:#ff6666;">No valid target page (closed, or a restricted chrome:// page). Use Retarget to pick an active tab.</div>';
     document.getElementById("deep-scan-status").textContent = "";
     if (targetLabel) targetLabel.textContent = "No target";
+    setTargetPill("No target");
     return;
   }
 
@@ -172,8 +271,10 @@ async function loadTargetTab(tab) {
   const url = new URL(tab.url);
   currentOrigin = url.origin;
   const domain = url.hostname.replace(/^www\./, "");
+  currentDomain = domain;
 
   if (targetLabel) targetLabel.textContent = tab.url;
+  setTargetPill(domain);
 
   document.getElementById("btn-subdomains").href = `https://crt.sh/?q=%25.${domain}`;
   const org = document.getElementById("github-org-input").value.trim();
@@ -192,10 +293,12 @@ async function loadTargetTab(tab) {
       discoveredScriptUrls.length > 0
         ? `${discoveredScriptUrls.length} external script(s) detected on this page.`
         : "No external <script src> files detected on this page.";
+    logEvent(2, `Passive scan of ${tab.url} — ${classified.length} finding(s) in rendered HTML/inline scripts, ${discoveredScriptUrls.length} external script(s) detected.`);
   });
 }
 
 getTargetTab(loadTargetTab);
+refreshHeaderPill();
 
 document.getElementById("btn-rebuild-dorks").addEventListener("click", () => {
   getTargetTab((tab) => {
@@ -204,6 +307,10 @@ document.getElementById("btn-rebuild-dorks").addEventListener("click", () => {
     const org = document.getElementById("github-org-input").value.trim();
     renderDorks(domain, org);
   });
+});
+
+document.getElementById("btn-subdomains").addEventListener("click", () => {
+  if (currentDomain) logEvent(6, `Opened crt.sh subdomain search for %.${currentDomain}`);
 });
 
 // ---- Standalone-window controls ----
@@ -244,7 +351,7 @@ if (isStandalone) {
       chrome.windows.create({
         url: chrome.runtime.getURL(`popup.html?standalone=1&tabId=${tab.id}`),
         type: "popup",
-        width: 520,
+        width: 540,
         height: 720,
       });
       window.close();
@@ -345,6 +452,11 @@ document.getElementById("btn-deep-scan").addEventListener("click", async () => {
     `Scanned ${urlsToScan.length} script(s) (${crossOriginUrls.length} cross-origin), found ${mapsFound} exposed source map(s). ` +
     `${allFindings.length} finding(s) total.`;
   renderFindings(resultsEl, allFindings, "No secrets found in fetched bundles or their source maps.");
+
+  const urlListForLog = urlsToScan.length > 10
+    ? urlsToScan.slice(0, 10).join(", ") + ` (+${urlsToScan.length - 10} more)`
+    : urlsToScan.join(", ");
+  logEvent(3, `Deep scan — ${urlsToScan.length} script(s) (${crossOriginUrls.length} cross-origin), ${mapsFound} source map(s), ${allFindings.length} finding(s). URLs: ${urlListForLog}`);
 });
 
 // ---- 3. Header Manager Logic ----
@@ -383,6 +495,15 @@ document.getElementById("save-headers").addEventListener("click", () => {
     const status = document.getElementById("save-status");
     status.innerText = "Headers saved and applied globally!";
     setTimeout(() => (status.innerText = ""), 2500);
+    refreshHeaderPill();
+
+    const active = customHeaders.filter((h) => h.active && h.name && h.value);
+    logEvent(
+      1,
+      active.length > 0
+        ? `Attribution header set: ${active.map((h) => `${h.name}: ${h.value}`).join(", ")}`
+        : "Attribution header cleared/disabled."
+    );
   });
 });
 
@@ -446,6 +567,9 @@ document.getElementById("btn-resolve").addEventListener("click", async () => {
     link.click();
     document.body.removeChild(link);
   };
+
+  const liveCount = results.filter((r) => typeof r.status === "number" && r.status < 400).length;
+  logEvent(5, `Scope resolver — ${domains.length} domain(s) resolved (${liveCount} live) with header(s): ${Object.keys(fetchHeaders).join(", ") || "none"}.`);
 });
 
 // ---- 5. Request Lab — Repeater / Intruder ----
@@ -518,12 +642,15 @@ document.getElementById("btn-lab-send").addEventListener("click", async () => {
 
   if (result.error) {
     statusEl.textContent = `Request failed: ${result.error}`;
+    logEvent(4, `${method} ${url} → failed: ${result.error}`);
     return;
   }
 
   statusEl.textContent = `${result.status} — ${result.text.length} bytes — ${result.time}ms`;
   responseEl.style.display = "block";
   responseEl.textContent = result.text.slice(0, 5000) + (result.text.length > 5000 ? "\n…(truncated)" : "");
+
+  logEvent(4, `${method} ${url} → ${result.status}, ${result.text.length} bytes, ${result.time}ms${Object.keys(headers).length ? ` (headers: ${Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join(", ")})` : ""}`);
 });
 
 document.getElementById("btn-lab-sweep").addEventListener("click", async () => {
@@ -586,4 +713,6 @@ document.getElementById("btn-lab-sweep").addEventListener("click", async () => {
   }
 
   statusEl.textContent = `Finished sweeping ${payloads.length} payload(s). Rows flagged in red differ from the baseline response length by >10% — worth a manual look, not an automatic finding.`;
+
+  logEvent(4, `Payload sweep — ${method} ${urlTemplate} — ${payloads.length} payload(s) tried: [${payloads.join(", ")}], baseline response length ${baselineLength ?? "n/a"} bytes.`);
 });

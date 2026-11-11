@@ -3,108 +3,205 @@
 <head>
     <meta charset="UTF-8">
     <style>
+        :root {
+            --bg: #0a0a0c;
+            --bg-raised: #15151a;
+            --bg-card: #1b1b22;
+            --border: #2a2a33;
+            --border-hi: #3a3a46;
+            --accent: #ff9900;
+            --accent-dim: #8a5500;
+            --cyan: #22e5ff;
+            --green: #2dd881;
+            --red: #ff4d4d;
+            --text: #eceef1;
+            --text-dim: #8b8d98;
+            --mono: ui-monospace, "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas, monospace;
+        }
         html, body { height: 100%; }
-        body { width: 480px; max-height: 600px; overflow-y: auto; background: #121212; color: #f1f1f1; font-family: monospace; margin: 0; padding: 15px; box-sizing: border-box; }
+        body {
+            width: 500px; max-height: 620px; overflow-y: auto;
+            background: radial-gradient(circle at top left, #121218 0%, var(--bg) 55%);
+            color: var(--text); font-family: var(--mono); margin: 0; padding: 0; box-sizing: border-box;
+            font-size: 12px;
+        }
         body.standalone { width: auto; max-height: none; height: 100%; }
-        .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
-        h2 { margin: 0; color: #ff9900; font-size: 16px; }
-        #btn-open-window { width: auto; margin: 0; padding: 6px 10px; font-size: 10px; white-space: nowrap; }
-        #window-controls { display: none; align-items: center; gap: 6px; background: #1e1e1e; border: 1px solid #333; border-radius: 6px; padding: 8px 10px; margin-bottom: 15px; font-size: 10px; }
-        #window-controls .wc-label { color: #888; flex-shrink: 0; }
-        #target-label { color: #0ff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 4px; }
+
+        /* ---- Sticky top status bar ---- */
+        #status-bar {
+            position: sticky; top: 0; z-index: 10;
+            background: linear-gradient(180deg, #141418 0%, #101013 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 14px; box-sizing: border-box;
+        }
+        .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+        h2 { margin: 0; color: var(--accent); font-size: 14px; letter-spacing: 0.3px; display: flex; align-items: center; gap: 6px; }
+        h2 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); display: inline-block; }
+        #btn-open-window { width: auto; margin: 0; padding: 5px 9px; font-size: 9px; white-space: nowrap; }
+        #window-controls { display: none; align-items: center; gap: 6px; background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px; margin-bottom: 8px; font-size: 10px; }
+        #window-controls .wc-label { color: var(--text-dim); flex-shrink: 0; }
+        #target-label { color: var(--cyan); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #btn-retarget { width: auto; margin: 0; padding: 5px 8px; font-size: 10px; flex-shrink: 0; }
-        .section { background: #1e1e1e; padding: 10px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #333; }
-        .section h3 { margin: 0 0 10px 0; font-size: 13px; color: #aaa; }
-        .no-leaks { color: #00ff00; font-size: 12px; }
-        .btn { display: block; width: 100%; padding: 8px; margin-bottom: 8px; background: #333; color: #fff; text-align: center; text-decoration: none; border-radius: 4px; border: 1px solid #555; cursor: pointer; box-sizing: border-box; font-family: monospace; font-size: 12px; }
-        .btn:hover { background: #ff9900; color: #111; border-color: #ff9900; }
+
+        .status-row { display: flex; align-items: center; gap: 8px; font-size: 10px; }
+        #status-target-pill { color: var(--cyan); background: #0d2e33; border: 1px solid #124550; padding: 3px 8px; border-radius: 10px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #status-header-pill { padding: 3px 8px; border-radius: 10px; white-space: nowrap; font-size: 9px; font-weight: bold; }
+        #status-header-pill.on { color: #0a1f12; background: var(--green); }
+        #status-header-pill.off { color: var(--text-dim); background: #222228; border: 1px solid var(--border-hi); }
+
+        #step-dots { display: flex; gap: 4px; margin-top: 7px; }
+        .step-dot { flex: 1; height: 4px; border-radius: 2px; background: var(--border); transition: background 0.3s; }
+        .step-dot.done { background: var(--accent); box-shadow: 0 0 4px var(--accent-dim); }
+
+        #body-content { padding: 12px 14px; }
+
+        .section { background: var(--bg-card); padding: 11px; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border); }
+        .section:hover { border-color: var(--border-hi); }
+        .section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .step-badge { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-raised); border: 1px solid var(--border-hi); color: var(--text-dim); font-size: 9px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        .step-badge.done { background: var(--accent); border-color: var(--accent); color: #1a1000; }
+        .section h3 { margin: 0; font-size: 11.5px; color: #c7c9d1; letter-spacing: 0.4px; text-transform: uppercase; }
+        .section-sub { font-size: 9.5px; color: var(--text-dim); margin: -6px 0 10px 26px; line-height: 1.4; }
+
+        .no-leaks { color: var(--green); font-size: 12px; }
+        .btn { display: block; width: 100%; padding: 8px; margin-bottom: 8px; background: #26262f; color: #fff; text-align: center; text-decoration: none; border-radius: 5px; border: 1px solid var(--border-hi); cursor: pointer; box-sizing: border-box; font-family: var(--mono); font-size: 11.5px; transition: all 0.15s; }
+        .btn:hover { background: var(--accent); color: #1a1000; border-color: var(--accent); }
 
         /* Finding cards */
-        .finding { background: #2a2a2a; padding: 8px; margin-bottom: 6px; border-radius: 4px; font-size: 11px; word-break: break-all; border-left: 3px solid #ff3333; }
-        .finding.sev-Medium { border-left-color: #ff9900; }
-        .finding.sev-Low { border-left-color: #666; }
+        .finding { background: #222229; padding: 9px; margin-bottom: 7px; border-radius: 5px; font-size: 11px; word-break: break-all; border-left: 3px solid var(--red); }
+        .finding.sev-Medium { border-left-color: var(--accent); }
+        .finding.sev-Low { border-left-color: #6a6a76; }
         .finding-type { font-weight: bold; color: #fff; }
-        .finding-sev { font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 6px; background: #ff3333; color: #111; }
-        .finding-sev.sev-Medium { background: #ff9900; }
-        .finding-sev.sev-Low { background: #666; color: #fff; }
-        .finding-source { color: #888; font-size: 10px; margin-top: 3px; }
-        .finding-value { color: #0ff; margin-top: 4px; }
-        .finding-context { color: #999; margin-top: 4px; font-style: italic; }
+        .finding-sev { font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 6px; background: var(--red); color: #1a0000; font-weight: bold; }
+        .finding-sev.sev-Medium { background: var(--accent); color: #1a1000; }
+        .finding-sev.sev-Low { background: #6a6a76; color: #fff; }
+        .finding-source { color: var(--text-dim); font-size: 10px; margin-top: 3px; }
+        .finding-value { color: var(--cyan); margin-top: 4px; }
+        .finding-context { color: #a0a2ac; margin-top: 4px; font-style: italic; }
         .finding-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; margin-left: 6px; background: #c026d3; color: #fff; }
         .finding-verify { color: #ffcc66; margin-top: 4px; font-size: 10px; }
         .finding-verify::before { content: "⚠ "; }
-        .finding-ai { color: #84cc16; margin-top: 4px; font-size: 10px; }
+        .finding-ai { color: var(--green); margin-top: 4px; font-size: 10px; }
         .finding-ai::before { content: "✦ AI: "; }
-        .copy-btn, .repeater-send-btn { margin-top: 6px; display: inline-block; background: #444; color: #fff; border: 1px solid #666; border-radius: 3px; padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: monospace; }
-        .copy-btn:hover, .repeater-send-btn:hover { background: #ff9900; color: #111; }
-        .copy-btn.copied { background: #00cc66; color: #111; }
+        .copy-btn, .repeater-send-btn { margin-top: 6px; display: inline-block; background: #333340; color: #fff; border: 1px solid var(--border-hi); border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; font-family: var(--mono); }
+        .copy-btn:hover, .repeater-send-btn:hover { background: var(--accent); color: #1a1000; }
+        .copy-btn.copied { background: var(--green); color: #0a1f12; }
 
         /* Header Manager Styles */
         .header-row { display: flex; gap: 5px; margin-bottom: 6px; align-items: center; }
-        .header-row input[type="text"] { flex: 1; background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 6px; border-radius: 3px; font-family: monospace; font-size: 11px; }
-        .header-row input[type="checkbox"] { accent-color: #ff9900; width: 16px; height: 16px; cursor: pointer; }
-        #save-headers { background: #ff9900; color: #111; font-weight: bold; border: none; margin-top: 5px; }
-        #save-headers:hover { background: #e68a00; }
-        .status-msg { font-size: 10px; color: #00ff00; text-align: center; min-height: 12px; margin-top: 5px; }
+        .header-row input[type="text"] { flex: 1; background: #222229; border: 1px solid var(--border-hi); color: #fff; padding: 6px; border-radius: 4px; font-family: var(--mono); font-size: 11px; }
+        .header-row input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+        #save-headers { background: var(--accent); color: #1a1000; font-weight: bold; border: none; margin-top: 5px; }
+        #save-headers:hover { background: #ffb020; }
+        .status-msg { font-size: 10px; color: var(--green); text-align: center; min-height: 12px; margin-top: 5px; }
 
         /* Scope Resolver Styles */
-        #scope-input { width: 100%; box-sizing: border-box; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 8px; font-family: monospace; font-size: 11px; margin-bottom: 8px; border-radius: 4px; resize: vertical; }
-        #btn-download-csv { background: #00cc66; color: #111; display: none; font-weight: bold; }
-        #btn-download-csv:hover { background: #00b359; border-color: #00b359; }
+        #scope-input { width: 100%; box-sizing: border-box; background: #222229; color: #fff; border: 1px solid var(--border-hi); padding: 8px; font-family: var(--mono); font-size: 11px; margin-bottom: 8px; border-radius: 5px; resize: vertical; }
+        #btn-download-csv { background: var(--green); color: #0a1f12; display: none; font-weight: bold; }
+        #btn-download-csv:hover { background: #45e395; }
 
         /* GitHub dorks */
-        .dork-link { display: block; background: #2a2a2a; color: #0ff; text-decoration: none; padding: 7px 9px; margin-bottom: 5px; border-radius: 4px; font-size: 11px; border: 1px solid #333; }
-        .dork-link:hover { border-color: #84cc16; background: #222; }
+        .dork-link { display: block; background: #222229; color: var(--cyan); text-decoration: none; padding: 7px 9px; margin-bottom: 5px; border-radius: 5px; font-size: 11px; border: 1px solid var(--border); }
+        .dork-link:hover { border-color: var(--green); background: #1c1c22; }
         .dork-label { color: #fff; font-weight: bold; display: block; margin-bottom: 2px; }
-        .dork-query { color: #888; font-size: 10px; word-break: break-all; }
+        .dork-query { color: var(--text-dim); font-size: 10px; word-break: break-all; }
 
         /* Deep scan */
-        #deep-scan-status { font-size: 10px; color: #aaa; margin-bottom: 8px; min-height: 12px; }
-        #btn-deep-scan { background: #2b4a6f; border-color: #3b6ea5; }
-        #btn-deep-scan:hover { background: #3b6ea5; color: #fff; }
-        .cors-toggle-row { display: flex; align-items: flex-start; gap: 6px; background: #241a0a; border: 1px solid #5a3d10; border-radius: 4px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; color: #ffcc66; }
-        .cors-toggle-row input[type="checkbox"] { accent-color: #ff9900; width: 14px; height: 14px; cursor: pointer; margin-top: 1px; flex-shrink: 0; }
+        #deep-scan-status { font-size: 10px; color: var(--text-dim); margin-bottom: 8px; min-height: 12px; }
+        #btn-deep-scan { background: #1f3a57; border-color: #2c5888; }
+        #btn-deep-scan:hover { background: #2c5888; color: #fff; }
+        .cors-toggle-row { display: flex; align-items: flex-start; gap: 6px; background: #241a0a; border: 1px solid #5a3d10; border-radius: 5px; padding: 6px 8px; margin-bottom: 8px; font-size: 10px; color: #ffcc66; }
+        .cors-toggle-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; margin-top: 1px; flex-shrink: 0; }
 
         /* Request Lab (Repeater / Intruder) */
-        #request-lab textarea, #request-lab input[type="text"] { width: 100%; box-sizing: border-box; background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 6px; font-family: monospace; font-size: 11px; margin-bottom: 6px; border-radius: 4px; resize: vertical; }
-        #request-lab select { background: #2a2a2a; color: #fff; border: 1px solid #444; padding: 6px; font-family: monospace; font-size: 11px; border-radius: 4px; margin-bottom: 6px; }
+        #request-lab textarea, #request-lab input[type="text"] { width: 100%; box-sizing: border-box; background: #222229; color: #fff; border: 1px solid var(--border-hi); padding: 6px; font-family: var(--mono); font-size: 11px; margin-bottom: 6px; border-radius: 5px; resize: vertical; }
+        #request-lab select { background: #222229; color: #fff; border: 1px solid var(--border-hi); padding: 6px; font-family: var(--mono); font-size: 11px; border-radius: 5px; margin-bottom: 6px; }
         .lab-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
         .lab-row select { flex-shrink: 0; }
         .lab-row input[type="text"] { margin-bottom: 0; }
-        .lab-label { font-size: 10px; color: #888; margin: 6px 0 3px 0; }
-        .lab-hint { font-size: 9px; color: #666; margin: -3px 0 6px 0; }
+        .lab-label { font-size: 10px; color: var(--text-dim); margin: 6px 0 3px 0; }
+        .lab-hint { font-size: 9px; color: #5c5d66; margin: -3px 0 6px 0; }
         #lab-send-row { display: flex; gap: 6px; }
         #lab-send-row .btn { margin-bottom: 0; }
-        #btn-lab-send { background: #2b6f4a; border-color: #3ba55f; }
-        #btn-lab-send:hover { background: #3ba55f; }
-        #btn-lab-sweep { background: #6f2b4a; border-color: #a53b6e; }
-        #btn-lab-sweep:hover { background: #a53b6e; }
-        #lab-response { background: #0d0d0d; border: 1px solid #333; border-radius: 4px; padding: 8px; font-size: 10px; margin-top: 8px; max-height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+        #btn-lab-send { background: #1f4a30; border-color: #2d7a4c; }
+        #btn-lab-send:hover { background: #2d7a4c; }
+        #btn-lab-sweep { background: #4a1f36; border-color: #7a2d5c; }
+        #btn-lab-sweep:hover { background: #7a2d5c; }
+        #lab-response { background: #0d0d10; border: 1px solid var(--border); border-radius: 5px; padding: 8px; font-size: 10px; margin-top: 8px; max-height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
         #lab-sweep-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 8px; }
-        #lab-sweep-table th, #lab-sweep-table td { border: 1px solid #333; padding: 4px 6px; text-align: left; word-break: break-all; }
-        #lab-sweep-table th { background: #2a2a2a; color: #aaa; }
+        #lab-sweep-table th, #lab-sweep-table td { border: 1px solid var(--border); padding: 4px 6px; text-align: left; word-break: break-all; }
+        #lab-sweep-table th { background: #222229; color: var(--text-dim); }
         #lab-sweep-table tr.anomaly { background: #3a1f1f; }
+
+        /* Session Log / Reproduction */
+        #session-log { background: #0d0d10; border: 1px solid var(--border); border-radius: 5px; max-height: 180px; overflow-y: auto; font-size: 10px; padding: 8px; margin-bottom: 8px; }
+        #session-log .log-empty { color: var(--text-dim); font-style: italic; }
+        .log-entry { padding: 4px 0; border-bottom: 1px solid #1c1c22; color: #c7c9d1; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-time { color: var(--text-dim); margin-right: 6px; }
+        .log-step { color: var(--accent); font-weight: bold; margin-right: 4px; }
+        .log-actions { display: flex; gap: 6px; }
+        .log-actions .btn { margin-bottom: 0; }
+        #btn-copy-repro { background: var(--accent); color: #1a1000; font-weight: bold; }
+        #btn-copy-repro:hover { background: #ffb020; }
+        #btn-clear-log { background: #2a2a33; }
     </style>
 </head>
 <body>
-    <div class="title-row">
-        <h2>Site Leak Radar (Multi-Tool)</h2>
-        <button id="btn-open-window" class="btn" title="Open as a standalone window that stays put while you click around the page">⧉ Open in Window</button>
+    <div id="status-bar">
+        <div class="title-row">
+            <h2><span class="dot"></span>Site Leak Radar</h2>
+            <button id="btn-open-window" class="btn" title="Open as a standalone window that stays put while you click around the page">⧉ Open in Window</button>
+        </div>
+        <div id="window-controls">
+            <span class="wc-label">Target:</span>
+            <span id="target-label">—</span>
+            <button id="btn-retarget" class="btn">Retarget to Active Tab</button>
+        </div>
+        <div class="status-row">
+            <span id="status-target-pill">No target yet</span>
+            <span id="status-header-pill" class="off">HEADER OFF</span>
+        </div>
+        <div id="step-dots">
+            <div class="step-dot" data-step="1" title="Step 1 — Attribution Header"></div>
+            <div class="step-dot" data-step="2" title="Step 2 — Passive Scan"></div>
+            <div class="step-dot" data-step="3" title="Step 3 — Deep Scan"></div>
+            <div class="step-dot" data-step="4" title="Step 4 — Request Lab"></div>
+            <div class="step-dot" data-step="5" title="Step 5 — Scope Resolver"></div>
+            <div class="step-dot" data-step="6" title="Step 6 — Footprint"></div>
+        </div>
     </div>
 
-    <div id="window-controls">
-        <span class="wc-label">Target:</span>
-        <span id="target-label">—</span>
-        <button id="btn-retarget" class="btn">Retarget to Active Tab</button>
+    <div id="body-content">
+
+    <div class="section">
+        <div class="section-head">
+            <span class="step-badge" id="badge-1">1</span>
+            <h3>Attribution Header — Set This First</h3>
+        </div>
+        <div class="section-sub">Required before any request below so every fetch this tool makes — scans, resolver, Request Lab — is attributable to you from the first one.</div>
+        <div id="headers-container"></div>
+        <button id="save-headers" class="btn">Save &amp; Apply Headers</button>
+        <div id="save-status" class="status-msg"></div>
     </div>
 
     <div class="section">
-        <h3>Detected Secrets — Page &amp; Inline Scripts</h3>
+        <div class="section-head">
+            <span class="step-badge" id="badge-2">2</span>
+            <h3>Passive Scan — Page &amp; Inline Scripts</h3>
+        </div>
+        <div class="section-sub">Rendered HTML and inline &lt;script&gt; contents, exactly as served to any visitor. No request beyond the page load itself.</div>
         <div id="leak-container">Scanning current page...</div>
     </div>
 
     <div class="section">
-        <h3>Deep Scan — External Scripts &amp; Source Maps</h3>
+        <div class="section-head">
+            <span class="step-badge" id="badge-3">3</span>
+            <h3>Deep Scan — External Scripts &amp; Source Maps</h3>
+        </div>
+        <div class="section-sub">Fetches every same-origin &lt;script src&gt; already loaded (plus late-loaded SPA chunks) and any source map they reference.</div>
         <label class="cors-toggle-row">
             <input type="checkbox" id="cors-override">
             <span>Allow cross-origin deep scan (I will verify ownership before reporting). Every result from this is tagged CROSS-ORIGIN.</span>
@@ -115,8 +212,11 @@
     </div>
 
     <div class="section" id="request-lab">
-        <h3>Request Lab — Repeater / Intruder</h3>
-        <div class="lab-hint">Manual replay &amp; payload-swap testing. Custom headers below ride along automatically (same declarativeNetRequest rule as the rest of the tool). Use §payload§ as a marker in URL / Headers / Body for the sweep.</div>
+        <div class="section-head">
+            <span class="step-badge" id="badge-4">4</span>
+            <h3>Request Lab — Repeater / Intruder</h3>
+        </div>
+        <div class="lab-hint">Manual replay &amp; payload-swap testing. Custom header above rides along automatically (same declarativeNetRequest rule as the rest of the tool). Use §payload§ as a marker in URL / Headers / Body for the sweep.</div>
 
         <div class="lab-row">
             <select id="lab-method">
@@ -154,7 +254,11 @@
     </div>
 
     <div class="section">
-        <h3>Bulk Scope Resolver</h3>
+        <div class="section-head">
+            <span class="step-badge" id="badge-5">5</span>
+            <h3>Bulk Scope Resolver</h3>
+        </div>
+        <div class="section-sub">Resolve a list of subdomains with the attribution header attached, export liveness + status for the record.</div>
         <textarea id="scope-input" placeholder="Paste subdomains here (one per line)..." rows="4"></textarea>
         <button id="btn-resolve" class="btn">Resolve Target Scope</button>
         <div id="resolve-status" class="status-msg" style="text-align:left; color:#aaa;"></div>
@@ -162,23 +266,33 @@
     </div>
 
     <div class="section">
-        <h3>Custom Header Injection</h3>
-        <div id="headers-container"></div>
-        <button id="save-headers" class="btn">Save &amp; Apply Headers</button>
-        <div id="save-status" class="status-msg"></div>
-    </div>
-
-    <div class="section">
-        <h3>External Footprint</h3>
+        <div class="section-head">
+            <span class="step-badge" id="badge-6">6</span>
+            <h3>External Footprint</h3>
+        </div>
         <a id="btn-subdomains" href="#" target="_blank" class="btn">View crt.sh Subdomains</a>
 
-        <h3 style="margin-top:14px;">GitHub Dorks</h3>
+        <h3 style="margin-top:14px; font-size:11px; color:#c7c9d1;">GitHub Dorks</h3>
         <div style="display:flex; gap:5px; margin-bottom:8px;">
             <input type="text" id="github-org-input" placeholder="GitHub org (optional, e.g. paypal)"
-                   style="flex:1; background:#2a2a2a; border:1px solid #444; color:#fff; padding:6px; border-radius:3px; font-family:monospace; font-size:11px;">
+                   style="flex:1; background:#222229; border:1px solid #3a3a46; color:#fff; padding:6px; border-radius:4px; font-family:var(--mono); font-size:11px;">
             <button id="btn-rebuild-dorks" class="btn" style="width:auto; margin:0; padding:6px 10px;">Go</button>
         </div>
         <div id="github-dorks-container"></div>
+    </div>
+
+    <div class="section">
+        <div class="section-head">
+            <h3>Session Log &amp; Steps to Reproduce</h3>
+        </div>
+        <div class="section-sub">Every action above is timestamped here as it happens. Export it into a report's "Steps to Reproduce" field so H1 or the target's own team can follow the exact same path and land on the same result. Resets when the popup/window closes.</div>
+        <div id="session-log"><div class="log-empty">No actions logged yet this session.</div></div>
+        <div class="log-actions">
+            <button id="btn-copy-repro" class="btn">Copy Steps to Reproduce</button>
+            <button id="btn-clear-log" class="btn">Clear Log</button>
+        </div>
+    </div>
+
     </div>
 
     <script src="rules.js"></script>
