@@ -135,6 +135,12 @@
         #lab-sweep-table th { background: #222229; color: var(--text-dim); }
         #lab-sweep-table tr.anomaly { background: #3a1f1f; }
 
+        /* Behavior Watcher */
+        #behavior-status { font-size: 10px; color: var(--text-dim); margin-bottom: 8px; min-height: 12px; }
+        #btn-refresh-behavior { background: #1f3a57; border-color: #2c5888; }
+        #btn-refresh-behavior:hover { background: #2c5888; color: #fff; }
+        #btn-clear-behavior { background: #2a2a33; }
+
         /* Session Log / Reproduction */
         #session-log { background: #0d0d10; border: 1px solid var(--border); border-radius: 5px; max-height: 180px; overflow-y: auto; font-size: 10px; padding: 8px; margin-bottom: 8px; }
         #session-log .log-empty { color: var(--text-dim); font-style: italic; }
@@ -279,6 +285,17 @@
             <button id="btn-rebuild-dorks" class="btn" style="width:auto; margin:0; padding:6px 10px;">Go</button>
         </div>
         <div id="github-dorks-container"></div>
+    </div>
+
+    <div class="section">
+        <div class="section-head">
+            <h3>Behavior Watcher — Flagged Irregularities</h3>
+        </div>
+        <div class="section-sub">Passively logs your own normal browsing (no extra requests, ever) and flags when the same endpoint shape behaves inconsistently with its own history — a status code that flips, a field that disappears, a call that's suddenly much slower, a stack trace that wasn't there before. Worth a manual look, not an automatic finding.</div>
+        <div id="behavior-status" class="status-msg" style="text-align:left; color:#aaa;"></div>
+        <div id="behavior-container"></div>
+        <button id="btn-refresh-behavior" class="btn">Refresh</button>
+        <button id="btn-clear-behavior" class="btn">Clear Flagged List</button>
     </div>
 
     <div class="section">

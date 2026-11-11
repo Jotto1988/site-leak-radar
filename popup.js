@@ -716,3 +716,76 @@ document.getElementById("btn-lab-sweep").addEventListener("click", async () => {
 
   logEvent(4, `Payload sweep — ${method} ${urlTemplate} — ${payloads.length} payload(s) tried: [${payloads.join(", ")}], baseline response length ${baselineLength ?? "n/a"} bytes.`);
 });
+
+// ---- 6. Behavior Watcher — flagged irregularities ----
+// Nothing here fires a request. watcher-inject.js + content.js have already
+// been logging your own normal browsing in the background; this just reads
+// back whatever watcher-store.js (in the background service worker) flagged
+// as inconsistent with that endpoint's own established baseline.
+function renderBehaviorAnomalies(anomalies) {
+  const container = document.getElementById("behavior-container");
+  const statusEl = document.getElementById("behavior-status");
+  if (statusEl) {
+    statusEl.textContent = `${anomalies.length} flagged irregularit${anomalies.length === 1 ? "y" : "ies"}.`;
+  }
+
+  if (!container) return;
+
+  if (anomalies.length === 0) {
+    container.innerHTML = '<div class="no-leaks">Nothing inconsistent flagged yet — keep browsing normally, then hit Refresh.</div>';
+    return;
+  }
+
+  container.innerHTML = "";
+  anomalies.forEach((a) => {
+    const div = document.createElement("div");
+    div.className = "finding sev-High";
+    const kinds = a.anomalies.map((x) => x.kind).join(", ");
+    const details = a.anomalies.map((x) => `• ${escapeHtml(x.detail)}`).join("<br>");
+    div.innerHTML = `
+      <div><span class="finding-type">${escapeHtml(kinds)}</span></div>
+      <div class="finding-source">Endpoint: ${escapeHtml(a.key)}</div>
+      <div class="finding-source">Seen on: ${escapeHtml(a.pageUrl || "")}</div>
+      <div class="finding-context">${details}</div>
+      <div class="finding-value">Latest call: ${a.entry.status} — ${a.entry.time ?? "?"}ms — ${new Date(a.at).toLocaleString()}</div>
+      <button class="copy-btn" data-key="${escapeHtml(a.key)}">Copy evidence</button>
+    `;
+    container.appendChild(div);
+
+    div.querySelector(".copy-btn").addEventListener("click", () => {
+      const text =
+        `Behavior Watcher — flagged irregularity\n` +
+        `Endpoint: ${a.key}\n` +
+        `Observed on: ${a.pageUrl}\n` +
+        `Flags: ${kinds}\n` +
+        a.anomalies.map((x) => `- ${x.detail}`).join("\n") +
+        `\nLatest call: ${a.entry.method} ${a.entry.url} → ${a.entry.status}, ${a.entry.time ?? "?"}ms\n` +
+        `Timestamp: ${new Date(a.at).toLocaleString()}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = div.querySelector(".copy-btn");
+        btn.textContent = "Copied!";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.textContent = "Copy evidence";
+          btn.classList.remove("copied");
+        }, 1500);
+      });
+    });
+  });
+}
+
+function refreshBehaviorAnomalies() {
+  chrome.runtime.sendMessage({ action: "getBehaviorAnomalies", limit: 100 }, (res) => {
+    renderBehaviorAnomalies((res && res.anomalies) || []);
+  });
+}
+
+const btnRefreshBehavior = document.getElementById("btn-refresh-behavior");
+const btnClearBehavior = document.getElementById("btn-clear-behavior");
+if (btnRefreshBehavior) btnRefreshBehavior.addEventListener("click", refreshBehaviorAnomalies);
+if (btnClearBehavior) {
+  btnClearBehavior.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "clearBehaviorAnomalies" }, () => refreshBehaviorAnomalies());
+  });
+}
+refreshBehaviorAnomalies();

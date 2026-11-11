@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Site Leak Radar",
-  "version": "1.7.0",
-  "description": "Passively detects leaked secrets (incl. exposed source maps), generates footprint dorks, injects custom HTTP headers, includes a Repeater/Intruder request lab, and logs every action into a copy-paste Steps to Reproduce block.",
+  "version": "1.8.0",
+  "description": "Passively detects leaked secrets (incl. exposed source maps), generates footprint dorks, injects custom HTTP headers, includes a Repeater/Intruder request lab, logs every action into a copy-paste Steps to Reproduce block, and now watches your own normal browsing over time to flag endpoints that behave inconsistently with themselves.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -22,6 +22,12 @@
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["watcher-inject.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
     {
       "matches": ["<all_urls>"],
       "js": ["rules.js", "content.js"]

@@ -102,3 +102,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   return true;
 });
+
+// ---- Behavior Watcher relay ----
+// watcher-inject.js runs in the MAIN world and can't reach chrome.runtime
+// directly, so it dispatches a CustomEvent on window (isolated-world content
+// scripts share the same DOM and can hear it); this listener picks each one
+// up and relays it to the background service worker, which does the actual
+// baseline/diff work and storage. This script never fires a request itself —
+// it only reacts to traffic the page already generated on its own.
+window.addEventListener("slr:behavior-entry", (e) => {
+  try {
+    chrome.runtime.sendMessage({
+      action: "behaviorEntry",
+      entry: e.detail,
+      pageUrl: window.location.href,
+    });
+  } catch (err) {
+    // Extension context can be invalidated mid-navigation — harmless to drop.
+  }
+});

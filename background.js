@@ -1,3 +1,8 @@
+// Behavior Watcher storage + baseline/diff engine (slrRecordObservation,
+// slrGetAnomalies, slrClearAnomalies). Classic service worker, so a plain
+// importScripts rather than an ES module import.
+importScripts("watcher-store.js");
+
 // Apply rules when the browser starts or extension is installed
 chrome.runtime.onStartup.addListener(loadAndApplyRules);
 chrome.runtime.onInstalled.addListener(loadAndApplyRules);
@@ -20,7 +25,7 @@ function loadAndApplyRules() {
 function applyHeaderRules(headersArray) {
     // Filter for headers that are checked and actually have text
     const activeHeaders = headersArray.filter(h => h.active && h.name && h.value);
-    
+
     const requestHeaders = activeHeaders.map(h => ({
         header: h.name,
         operation: "set",
@@ -49,3 +54,24 @@ function applyHeaderRules(headersArray) {
         console.log("Site Leak Radar: Headers updated.", requestHeaders);
     });
 }
+
+// ---- Behavior Watcher message handling ----
+// content.js relays each observed fetch/XHR pair here (it never generates
+// new traffic itself); this is where the baseline/diff logic and the
+// IndexedDB storage from watcher-store.js actually run.
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "behaviorEntry") {
+        slrRecordObservation(request.entry, request.pageUrl).catch((e) => {
+            console.warn("Site Leak Radar: behavior observation failed to record.", e);
+        });
+        return false; // fire-and-forget, no response needed
+    }
+    if (request.action === "getBehaviorAnomalies") {
+        slrGetAnomalies(request.limit || 100).then((anomalies) => sendResponse({ anomalies }));
+        return true; // keep the message channel open for the async response
+    }
+    if (request.action === "clearBehaviorAnomalies") {
+        slrClearAnomalies().then(() => sendResponse({ ok: true }));
+        return true;
+    }
+});
